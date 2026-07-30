@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Codicent Logbook — Standalone MCP logbook runtime</title>
+<meta name="description" content="A standalone, zero-dependency logbook runtime that ships as a single self-contained executable. SQLite storage, MCP server, file inbox, public tunnel. Works with Claude Desktop, Cursor, and any MCP client.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --accent:#E8B45A;
+    --canvas:#0B0D0F;
+    --surface:#0C0F11;
+    --text:#ECEEF0;
+    --muted:#98A0A8;
+    --dim:#6B747C;
+    --border:rgba(255,255,255,0.09);
+    --hairline:rgba(255,255,255,0.07);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--canvas);}
+  html{scroll-behavior:smooth;}
+  body{color:var(--text);font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden;}
+  a{color:var(--accent);text-decoration:none;}
+  a:hover{color:var(--text);}
+  ::selection{background:var(--accent);color:var(--canvas);}
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:8px;}
+  h1,h2,h3{font-family:'Space Grotesk',sans-serif;letter-spacing:-0.02em;}
+  @keyframes floatGlow{0%,100%{transform:translate(-50%,-50%) scale(1);}50%{transform:translate(-46%,-54%) scale(1.08);}}
+
+  .wrap{position:relative;z-index:1;max-width:1160px;margin:0 auto;padding:0 clamp(20px,5vw,48px);}
+  .bg-grid,.bg-glow{position:absolute;pointer-events:none;}
+  .bg-grid{inset:0;opacity:.42;background-image:linear-gradient(rgba(255,255,255,0.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.035) 1px,transparent 1px);background-size:64px 64px;-webkit-mask-image:linear-gradient(180deg,#000,transparent 90%);mask-image:linear-gradient(180deg,#000,transparent 90%);}
+  .bg-glow{top:0;left:50%;width:900px;height:640px;opacity:.45;background:radial-gradient(circle,color-mix(in oklab,var(--accent) 40%,transparent),transparent 68%);filter:blur(20px);transform:translate(-50%,-50%);animation:floatGlow 14s ease-in-out infinite;}
+
+  nav{position:sticky;top:0;z-index:30;display:flex;align-items:center;justify-content:space-between;padding:18px clamp(20px,5vw,48px);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);background:rgba(11,13,15,0.62);border-bottom:1px solid rgba(255,255,255,0.06);}
+  .brand{display:flex;align-items:center;gap:11px;font-family:'Space Grotesk';font-weight:600;font-size:17px;letter-spacing:-0.01em;}
+  .brand .mark{width:20px;height:20px;background:var(--accent);border-radius:5px;transform:rotate(45deg);box-shadow:0 0 18px color-mix(in oklab,var(--accent) 60%,transparent);}
+  .brand .sub{color:var(--dim);font-weight:400;}
+  .nav-links{display:flex;align-items:center;gap:clamp(14px,3vw,30px);font-size:14.5px;}
+  .nav-links a.plain{color:#B7BEC5;}
+  .nav-links a.plain:hover{color:var(--text);}
+  .nav-links a.plain.hide-sm{display:none;}
+  @media(min-width:760px){.nav-links a.plain.hide-sm{display:inline;}}
+  .nav-cta{display:inline-flex;align-items:center;gap:7px;color:var(--text)!important;border:1px solid rgba(255,255,255,0.14);padding:8px 15px;border-radius:9px;font-weight:500;transition:border-color .18s,background .18s;}
+  .nav-cta:hover{border-color:var(--accent);background:rgba(255,255,255,0.04);}
+
+  header{padding-top:clamp(48px,8vw,92px);padding-bottom:clamp(40px,6vw,72px);}
+  .hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:clamp(36px,5vw,64px);align-items:center;}
+  .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 13px;border:1px solid rgba(255,255,255,0.12);border-radius:100px;font-family:'JetBrains Mono';font-size:12px;color:#B7BEC5;margin-bottom:26px;}
+  .pill .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent);}
+  h1{font-weight:600;font-size:clamp(38px,5.6vw,64px);line-height:1.02;letter-spacing:-0.025em;margin:0 0 22px;text-wrap:balance;}
+  h1 .hl{color:var(--accent);}
+  .lede{font-size:clamp(16px,2vw,19px);line-height:1.6;color:var(--muted);max-width:47ch;margin:0 0 34px;}
+  .cta-row{display:flex;flex-wrap:wrap;gap:13px;}
+  .btn-primary{display:inline-flex;align-items:center;gap:9px;background:var(--accent);color:#13100A!important;font-family:'Space Grotesk';font-weight:600;font-size:15px;padding:14px 24px;border-radius:11px;transition:filter .18s,transform .18s;}
+  .btn-primary:hover{filter:brightness(1.08);transform:translateY(-1px);}
+  .btn-primary .arr{font-family:'JetBrains Mono';font-size:16px;}
+  .btn-ghost{display:inline-flex;align-items:center;gap:9px;color:var(--text)!important;border:1px solid rgba(255,255,255,0.16);font-family:'Space Grotesk';font-weight:500;font-size:15px;padding:14px 22px;border-radius:11px;transition:border-color .18s,background .18s;}
+  .btn-ghost:hover{border-color:rgba(255,255,255,0.34);background:rgba(255,255,255,0.03);}
+
+  .code-card{border:1px solid var(--border);border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.01));box-shadow:0 24px 60px -24px rgba(0,0,0,0.7);overflow:hidden;}
+  .code-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--hairline);background:rgba(255,255,255,0.02);}
+  .code-head.pad{padding:14px 18px;}
+  .dots{display:flex;align-items:center;gap:7px;}
+  .dots i{width:11px;height:11px;border-radius:50%;background:#3A4048;display:block;}
+  .fname{font-family:'JetBrains Mono';font-size:12px;color:var(--dim);margin-left:8px;}
+  .ctitle{font-family:'Space Grotesk';font-weight:500;font-size:14.5px;}
+  .ctitle .sub{color:var(--dim);font-weight:400;}
+  .copy-btn{display:inline-flex;align-items:center;gap:6px;background:transparent;border:1px solid rgba(255,255,255,0.12);color:#B7BEC5;font-family:'JetBrains Mono';font-size:11px;padding:5px 10px;border-radius:7px;cursor:pointer;transition:border-color .18s,color .18s;}
+  .copy-btn:hover{border-color:var(--accent);color:var(--text);}
+  pre{margin:0;padding:20px 18px;font-family:'JetBrains Mono';font-size:13px;line-height:1.75;overflow-x:auto;color:#B7BEC5;}
+  pre.sm{padding:18px;font-size:12.5px;line-height:1.7;}
+  .c-comment{color:#5B6472;}
+  .c-cmd{color:#ECEEF0;}
+  .c-str{color:#E5B567;}
+  .c-key{color:#7AA2F7;}
+  .c-ok{color:#6EE7A0;}
+
+  .strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:1px;margin-top:clamp(44px,6vw,72px);background:var(--hairline);border:1px solid var(--hairline);border-radius:14px;overflow:hidden;}
+  .strip .cell{padding:22px 24px;background:var(--surface);}
+  .strip .big{font-family:'Space Grotesk';font-weight:600;font-size:26px;color:var(--text);}
+  .strip .small{font-size:13.5px;color:#8B9299;margin-top:4px;}
+
+  section{padding-top:clamp(56px,8vw,96px);padding-bottom:clamp(56px,8vw,96px);}
+  .sec-head{max-width:640px;margin-bottom:44px;}
+  .eyebrow{font-family:'JetBrains Mono';font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:var(--accent);margin-bottom:14px;}
+  h2{font-weight:600;font-size:clamp(28px,4vw,42px);line-height:1.08;margin:0 0 16px;}
+  .sec-head p{font-size:17px;line-height:1.6;color:var(--muted);margin:0;}
+  h3{font-weight:600;font-size:19px;margin:34px 0 12px;}
+
+  .two-col{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:20px;}
+  .three-col{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;}
+  .card-flat{border:1px solid var(--border);border-radius:14px;background:rgba(255,255,255,0.02);overflow:hidden;}
+
+  .features{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1px;background:var(--hairline);border:1px solid var(--hairline);border-radius:16px;overflow:hidden;}
+  .feature{background:var(--surface);padding:26px;}
+  .feature h3{margin:0 0 8px;font-size:17px;}
+  .feature p{font-size:14.5px;line-height:1.55;color:var(--muted);margin:0;}
+  .feature code{font-family:'JetBrains Mono';font-size:12.5px;color:#C6CCD2;background:rgba(255,255,255,0.05);padding:1px 6px;border-radius:5px;}
+  .feature .fi{width:34px;height:34px;border-radius:9px;background:color-mix(in oklab,var(--accent) 15%,transparent);display:flex;align-items:center;justify-content:center;font-size:16px;margin-bottom:14px;}
+
+  .catalog{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1px;background:var(--hairline);border:1px solid var(--hairline);border-radius:16px;overflow:hidden;}
+  .group{background:var(--surface);padding:26px;}
+  .group-title{display:flex;align-items:center;gap:9px;margin-bottom:18px;}
+  .group-title .di{width:9px;height:9px;background:var(--accent);border-radius:2px;transform:rotate(45deg);}
+  .group-title span:last-child{font-family:'Space Grotesk';font-weight:600;font-size:15px;}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;font-family:'JetBrains Mono';font-size:12.5px;}
+  .chip{padding:5px 10px;background:rgba(255,255,255,0.04);border:1px solid var(--hairline);border-radius:7px;color:#C6CCD2;}
+  .group .note{font-size:13px;color:var(--dim);margin:14px 0 0;line-height:1.5;}
+  .group .note code{font-family:'JetBrains Mono';font-size:12px;}
+
+  .table-wrap{border:1px solid var(--border);border-radius:14px;overflow-x:auto;background:rgba(255,255,255,0.02);}
+  table{width:100%;border-collapse:collapse;font-size:14px;}
+  th,td{text-align:left;padding:12px 16px;border-bottom:1px solid var(--hairline);vertical-align:top;}
+  th{font-family:'Space Grotesk';font-weight:600;font-size:13px;color:#B7BEC5;background:rgba(255,255,255,0.03);}
+  tr:last-child td{border-bottom:none;}
+  td code,li code,p code{font-family:'JetBrains Mono';font-size:12.5px;color:#C6CCD2;background:rgba(255,255,255,0.05);padding:1px 6px;border-radius:5px;white-space:nowrap;}
+  td{color:var(--muted);}
+  td:first-child{color:var(--text);}
+
+  .tabs .tab-bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;}
+  .tab-btn{background:transparent;border:1px solid rgba(255,255,255,0.14);color:#B7BEC5;font-family:'Space Grotesk';font-weight:500;font-size:13.5px;padding:8px 16px;border-radius:9px;cursor:pointer;transition:border-color .18s,color .18s,background .18s;}
+  .tab-btn:hover{border-color:var(--accent);color:var(--text);}
+  .tab-btn.active{background:var(--accent);border-color:var(--accent);color:#13100A;}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+
+  .callout{border:1px solid color-mix(in oklab,var(--accent) 38%,transparent);background:color-mix(in oklab,var(--accent) 7%,transparent);border-radius:12px;padding:14px 18px;font-size:14px;line-height:1.6;color:#D8DCE0;margin:18px 0;}
+  .callout strong{color:var(--text);}
+
+  ul.plain{margin:10px 0 0;padding-left:22px;color:var(--muted);font-size:14.5px;line-height:1.7;}
+
+  footer{border-top:1px solid var(--hairline);background:#0A0C0E;}
+  .foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:20px;padding:40px clamp(20px,5vw,48px);max-width:1160px;margin:0 auto;}
+  .foot .meta{display:flex;flex-wrap:wrap;gap:22px;font-size:13px;color:var(--dim);font-family:'JetBrains Mono';}
+  .foot .meta a{color:#B7BEC5;}
+  .foot .mark{width:18px;height:18px;background:var(--accent);border-radius:5px;transform:rotate(45deg);}
+</style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+<div class="bg-glow"></div>
+
+<nav>
+  <div class="brand"><span class="mark"></span><span>Codicent<span class="sub">/logbook</span></span></div>
+  <div class="nav-links">
+    <a class="plain" href="#quickstart">Install</a>
+    <a class="plain" href="#integrations">Integrations</a>
+    <a class="plain hide-sm" href="#mcp-tools">MCP tools</a>
+    <a class="plain hide-sm" href="#configuration">Config</a>
+    <a class="nav-cta" href="https://github.com/izaxon/codicent-logbook">GitHub</a>
+  </div>
+</nav>
+
+<header class="wrap">
+  <div class="hero">
+    <div>
+      <div class="pill"><span class="dot"></span>single binary · SQLite · MCP · OpenAPI</div>
+      <h1>A <span class="hl">logbook</span> your AI can remember with.</h1>
+      <p class="lede">A standalone, zero-dependency logbook runtime in one self-contained executable. Drop files in, post messages, ask AI about them — from Claude Desktop, Cursor, or any MCP client. No cloud accounts. No Docker. No config file.</p>
+      <div class="cta-row">
+        <a class="btn-primary" href="#quickstart">Install in 60 seconds <span class="arr">→</span></a>
+        <a class="btn-ghost" href="https://github.com/izaxon/codicent-logbook/releases/latest">Download binaries</a>
+      </div>
+    </div>
+
+    <div class="code-card">
+      <div class="code-head">
+        <div class="dots"><i></i><i></i><i></i><span class="fname">terminal</span></div>
+        <button class="copy-btn" data-code="hero"><span>Copy</span></button>
+      </div>
+      <pre><span class="c-comment"># one line installs it</span>
+<span class="c-cmd">curl -fsSL https://izaxon.github.io/codicent-logbook/install.sh | bash</span>
+
+<span class="c-cmd">logbook-server</span>
+<span class="c-comment">┌─────────────────────────────────────┐
+│      Codicent Logbook Runtime       │
+└─────────────────────────────────────┘</span>
+  Local UI:  <span class="c-ok">http://localhost:5100</span>
+  MCP:       <span class="c-ok">http://localhost:5100/mcp</span>
+  OpenAPI:   <span class="c-ok">http://localhost:5100/openapi.json</span></pre>
+    </div>
+  </div>
+
+  <div class="strip">
+    <div class="cell"><div class="big">1 file</div><div class="small">Self-contained binary, no .NET SDK</div></div>
+    <div class="cell"><div class="big">SQLite</div><div class="small">Local storage, zero services</div></div>
+    <div class="cell"><div class="big">MCP</div><div class="small">stdio + HTTP Streamable + SSE</div></div>
+    <div class="cell"><div class="big">OpenAPI</div><div class="small">REST API with 3.0 schema</div></div>
+  </div>
+</header>
+
+<section id="quickstart" class="wrap">
+  <div class="sec-head">
+    <div class="eyebrow">Quick start</div>
+    <h2>Running in 60 seconds.</h2>
+    <p>One command downloads the right binary for your platform from GitHub Releases and puts it on your PATH.</p>
+  </div>
+
+  <div class="tabs">
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="tab-nix">Linux / macOS</button>
+      <button class="tab-btn" data-tab="tab-win">Windows</button>
+      <button class="tab-btn" data-tab="tab-manual">Manual download</button>
+      <button class="tab-btn" data-tab="tab-tunnel">Public tunnel</button>
+    </div>
+
+    <div id="tab-nix" class="tab-panel active">
+      <div class="card-flat">
+        <div class="code-head pad">
+          <span class="ctitle">Install script <span class="sub">· bash</span></span>
+          <button class="copy-btn" data-code="nix"><span>Copy</span></button>
+        </div>
+        <pre class="sm"><span class="c-cmd">curl -fsSL https://izaxon.github.io/codicent-logbook/install.sh | bash</span>
+<span class="c-cmd">logbook-server</span>
+<span class="c-comment"># → open http://localhost:5100 — MCP ready at /mcp</span></pre>
+      </div>
+    </div>
+
+    <div id="tab-win" class="tab-panel">
+      <div class="card-flat">
+        <div class="code-head pad">
+          <span class="ctitle">Install script <span class="sub">· PowerShell</span></span>
+          <button class="copy-btn" data-code="win"><span>Copy</span></button>
+        </div>
+        <pre class="sm"><span class="c-cmd">iwr https://izaxon.github.io/codicent-logbook/install.ps1 | iex</span>
+<span class="c-cmd">logbook-server</span>
+<span class="c-comment"># → open http://localhost:5100 — MCP ready at /mcp</span></pre>
+      </div>
+    </div>
+
+    <div id="tab-manual" class="tab-panel">
+      <div class="card-flat">
+        <div class="code-head pad">
+          <span class="ctitle">Direct download <span class="sub">· pick your platform</span></span>
+          <button class="copy-btn" data-code="manual"><span>Copy</span></button>
+        </div>
+        <pre class="sm"><span class="c-comment"># Linux x64 (also: linux-arm64, osx-arm64, osx-x64, win-x64.exe)</span>
+<span class="c-cmd">curl -Lo logbook-server \
+  https://github.com/izaxon/codicent-logbook/releases/latest/download/logbook-server-linux-x64</span>
+<span class="c-cmd">chmod +x logbook-server && ./logbook-server</span></pre>
+      </div>
+      <p style="font-size:14px;color:var(--muted);margin-top:14px;">All binaries: <a href="https://github.com/izaxon/codicent-logbook/releases/latest">github.com/izaxon/codicent-logbook/releases</a></p>
+    </div>
+
+    <div id="tab-tunnel" class="tab-panel">
+      <div class="card-flat">
+        <div class="code-head pad">
+          <span class="ctitle">Public HTTPS tunnel <span class="sub">· Cloudflare Quick Tunnel, no account</span></span>
+          <button class="copy-btn" data-code="tunnel"><span>Copy</span></button>
+        </div>
+        <pre class="sm"><span class="c-cmd">export LOGBOOK_PROJECT=<span class="c-str">"myapp"</span></span>
+<span class="c-cmd">export LOGBOOK_API_KEY=<span class="c-str">"mysecretkey"</span></span>
+<span class="c-cmd">logbook-server --tunnel</span>
+<span class="c-comment"># Tunnel:  https://abc123.trycloudflare.com
+# MCP:     https://abc123.trycloudflare.com/mcp</span></pre>
+      </div>
+      <div class="callout"><strong>Always set <code>LOGBOOK_API_KEY</code></strong> before enabling a tunnel — without it the endpoint is open to the public internet. <code>--relay</code> gives a stable <code>{project}.logbook.codicent.com</code> URL instead.</div>
+    </div>
+  </div>
+</section>
+
+<section id="features" class="wrap">
+  <div class="sec-head">
+    <div class="eyebrow">Features</div>
+    <h2>Everything you need. Nothing to operate.</h2>
+    <p>A personal, AI-accessible logbook with the same message-and-tags data model as the full Codicent platform.</p>
+  </div>
+  <div class="features">
+    <div class="feature"><div class="fi">📦</div><h3>Single executable</h3><p>Pre-built binaries for Linux, macOS, and Windows. No .NET SDK, no installer — download and run.</p></div>
+    <div class="feature"><div class="fi">🤖</div><h3>MCP server</h3><p>Full Model Context Protocol server over stdio or HTTP. Works with Claude Desktop, Cursor, OpenAI Agents SDK, and any MCP client.</p></div>
+    <div class="feature"><div class="fi">📄</div><h3>OpenAPI schema</h3><p>Standard OpenAPI 3.0 at <code>/openapi.json</code> — integrate with LangChain, Semantic Kernel, AutoGen, or plain curl.</p></div>
+    <div class="feature"><div class="fi">📂</div><h3>File inbox</h3><p>Drop any file into <code>./inbox/</code> — indexed automatically, tagged <code>#inbox #file</code>, moved to <code>processed/</code>.</p></div>
+    <div class="feature"><div class="fi">🌐</div><h3>Public tunnel</h3><p><code>--tunnel</code> starts a Cloudflare Quick Tunnel: an instant public HTTPS URL, no account needed. <code>--relay</code> for a stable subdomain.</p></div>
+    <div class="feature"><div class="fi">🔒</div><h3>API key auth</h3><p>Set <code>LOGBOOK_API_KEY</code> to protect <code>/mcp</code> and <code>/api/*</code> with Bearer token authentication.</p></div>
+    <div class="feature"><div class="fi">🪝</div><h3>Webhooks</h3><p>HMAC-SHA256-signed notifications for <code>message.created</code> and <code>file.uploaded</code> — no Redis required.</p></div>
+    <div class="feature"><div class="fi">🧠</div><h3>Agentic memory</h3><p>Tagged messages with JSON payloads give AI agents persistent memory — facts, conventions, and context across sessions.</p></div>
+    <div class="feature"><div class="fi">🗃️</div><h3>Versioning built in</h3><p>Updates create child messages; queries return the latest version. Soft delete with <code>#hidden</code>. Same semantics as full Codicent.</p></div>
+  </div>
+</section>
+
+<section id="integrations" class="wrap">
+  <div class="sec-head">
+    <div class="eyebrow">Integrations</div>
+    <h2>Point your AI at it.</h2>
+    <p>Any MCP client or OpenAPI-compatible tool connects in one config block.</p>
+  </div>
+  <div class="two-col">
+    <div class="card-flat">
+      <div class="code-head pad">
+        <span class="ctitle">Claude Desktop <span class="sub">· stdio, recommended</span></span>
+        <button class="copy-btn" data-code="claude"><span>Copy</span></button>
+      </div>
+      <pre class="sm"><span class="c-comment">// claude_desktop_config.json</span>
+{
+  <span class="c-key">"mcpServers"</span>: {
+    <span class="c-key">"codicent-logbook"</span>: {
+      <span class="c-key">"command"</span>: <span class="c-str">"/path/to/logbook-server"</span>,
+      <span class="c-key">"args"</span>: [<span class="c-str">"--stdio"</span>],
+      <span class="c-key">"env"</span>: { <span class="c-key">"LOGBOOK_PROJECT"</span>: <span class="c-str">"myproject"</span> }
+    }
+  }
+}</pre>
+    </div>
+    <div class="card-flat">
+      <div class="code-head pad">
+        <span class="ctitle">Remote HTTP <span class="sub">· tunnel running</span></span>
+        <button class="copy-btn" data-code="http"><span>Copy</span></button>
+      </div>
+      <pre class="sm">{
+  <span class="c-key">"mcpServers"</span>: {
+    <span class="c-key">"codicent-logbook"</span>: {
+      <span class="c-key">"url"</span>: <span class="c-str">"https://abc123.trycloudflare.com/mcp"</span>,
+      <span class="c-key">"headers"</span>: { <span class="c-key">"Authorization"</span>: <span class="c-str">"Bearer mysecretkey"</span> }
+    }
+  }
+}</pre>
+    </div>
+    <div class="card-flat">
+      <div class="code-head pad">
+        <span class="ctitle">Cursor / VS Code <span class="sub">· .cursor/mcp.json</span></span>
+        <button class="copy-btn" data-code="cursor"><span>Copy</span></button>
+      </div>
+      <pre class="sm">{
+  <span class="c-key">"mcpServers"</span>: {
+    <span class="c-key">"logbook"</span>: {
+      <span class="c-key">"command"</span>: <span class="c-str">"/path/to/logbook-server"</span>,
+      <span class="c-key">"args"</span>: [<span class="c-str">"--stdio"</span>],
+      <span class="c-key">"env"</span>: { <span class="c-key">"LOGBOOK_PROJECT"</span>: <span class="c-str">"myproject"</span> }
+    }
+  }
+}</pre>
+    </div>
+    <div class="card-flat">
+      <div class="code-head pad">
+        <span class="ctitle">OpenAPI tools <span class="sub">· LangChain, Agents SDK, …</span></span>
+        <button class="copy-btn" data-code="openapi"><span>Copy</span></button>
+      </div>
+      <pre class="sm"><span class="c-cmd">tools = load_tools_from_openapi(
+  <span class="c-str">"http://localhost:5100/openapi.json"</span>)</span>
+
+<span class="c-comment"># then ask your agent:
+#  "Post a message to the logbook: Hello!"
+#  "Get data messages tagged 'customer'"
+#  "What files are in the logbook?"</span></pre>
+    </div>
+  </div>
+</section>
+
+<section id="mcp-tools" class="wrap">
+  <div class="sec-head">
+    <div class="eyebrow">MCP tools</div>
+    <h2>Twelve tools. One data model.</h2>
+    <p>Everything is a message — a string with <code>#tags</code>, <code>@mentions</code>, and optional embedded JSON. Tags are indexed into relational tables for fast querying.</p>
+  </div>
+  <div class="catalog">
+    <div class="group">
+      <div class="group-title"><span class="di"></span><span>Messages</span></div>
+      <div class="chips">
+        <span class="chip">PostMessage</span><span class="chip">GetMessages</span><span class="chip">GetDataMessages</span><span class="chip">GetMessageById</span><span class="chip">HideMessage</span>
+      </div>
+      <p class="note">Post with <code>#tags</code> and JSON, search full-text, filter data messages by tag, version via <code>parentId</code>, soft-delete with <code>#hidden</code>.</p>
+    </div>
+    <div class="group">
+      <div class="group-title"><span class="di"></span><span>Files</span></div>
+      <div class="chips">
+        <span class="chip">UploadFile</span><span class="chip">DownloadFile</span><span class="chip">GetFileInfo</span><span class="chip">GetFiles</span>
+      </div>
+      <p class="note">Base64 upload/download with content-addressed SHA-256 storage — or just drop files in <code>./inbox/</code>.</p>
+    </div>
+    <div class="group">
+      <div class="group-title"><span class="di"></span><span>Webhooks</span></div>
+      <div class="chips">
+        <span class="chip">RegisterWebhook</span><span class="chip">UnregisterWebhook</span><span class="chip">ListWebhooks</span>
+      </div>
+      <p class="note">HMAC-SHA256-signed POSTs with <code>X-Logbook-Event</code>, <code>X-Logbook-Event-Id</code>, and <code>X-Logbook-Signature</code> headers.</p>
+    </div>
+  </div>
+
+  <h3>Agentic memory pattern</h3>
+  <div class="card-flat" style="max-width:760px;">
+    <div class="code-head pad">
+      <span class="ctitle">Persistent agent memory <span class="sub">· tagged JSON messages</span></span>
+      <button class="copy-btn" data-code="memory"><span>Copy</span></button>
+    </div>
+    <pre class="sm"><span class="c-comment"># store a fact</span>
+<span class="c-cmd">PostMessage(<span class="c-str">"@myproject #memory #fact #auth
+  {\"fact\": \"Use JWT tokens for API auth\", \"citations\": \"src/auth.ts:15\"}"</span>)</span>
+
+<span class="c-comment"># recall facts about authentication</span>
+<span class="c-cmd">GetDataMessages(tags: <span class="c-str">"memory,auth"</span>)</span>
+
+<span class="c-comment"># update (new version) / expire</span>
+<span class="c-cmd">PostMessage(message: <span class="c-str">"..."</span>, parentId: <span class="c-str">"original-id"</span>)</span>
+<span class="c-cmd">HideMessage(messageId: <span class="c-str">"fact-id"</span>)</span></pre>
+  </div>
+</section>
+
+<section id="configuration" class="wrap">
+  <div class="sec-head">
+    <div class="eyebrow">Configuration</div>
+    <h2>Environment variables only.</h2>
+    <p>No config file. Sensible defaults for everything — set variables only for what you change.</p>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>LOGBOOK_PROJECT</code></td><td><code>default</code></td><td>Project name; creates a dedicated <code>{project}/</code> folder for database and files.</td></tr>
+        <tr><td><code>LOGBOOK_PORT</code></td><td><code>5100</code></td><td>HTTP server port.</td></tr>
+        <tr><td><code>LOGBOOK_API_KEY</code></td><td><em>(none)</em></td><td>Protects <code>/mcp</code> and <code>/api/*</code> with Bearer auth. Set it before tunneling.</td></tr>
+        <tr><td><code>LOGBOOK_DATABASE</code></td><td><code>{project}/logbook.db</code></td><td>SQLite database path.</td></tr>
+        <tr><td><code>LOGBOOK_FILES</code></td><td><code>{project}/files/</code></td><td>Content-addressed file store.</td></tr>
+        <tr><td><code>LOGBOOK_INBOX</code></td><td><code>{project}/inbox/</code></td><td>Watched folder; files auto-index on arrival.</td></tr>
+        <tr><td><code>LOGBOOK_TUNNEL</code></td><td><code>false</code></td><td>Start a Cloudflare Quick Tunnel on boot (same as <code>--tunnel</code>).</td></tr>
+        <tr><td><code>LOGBOOK_RELAY</code></td><td><code>false</code></td><td>Connect to the Codicent relay for a stable <code>{project}.logbook.codicent.com</code> URL.</td></tr>
+        <tr><td><code>LOGBOOK_RELAY_TOKEN</code></td><td><em>(none)</em></td><td>Relay auth token.</td></tr>
+        <tr><td><code>LOGBOOK_WEBHOOK_URL</code></td><td><em>(none)</em></td><td>Endpoint for <code>message.created</code> / <code>file.uploaded</code> events.</td></tr>
+        <tr><td><code>LOGBOOK_WEBHOOK_SECRET</code></td><td><em>(none)</em></td><td>HMAC-SHA256 secret for webhook signatures.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>REST API</h3>
+  <div class="table-wrap" style="max-width:760px;">
+    <table>
+      <thead><tr><th>Path</th><th>Method</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>/</code></td><td>GET</td><td>Web UI</td></tr>
+        <tr><td><code>/health</code></td><td>GET</td><td>Health check</td></tr>
+        <tr><td><code>/mcp</code></td><td>POST/SSE</td><td>MCP server (HTTP Streamable + SSE)</td></tr>
+        <tr><td><code>/openapi.json</code></td><td>GET</td><td>OpenAPI 3.0 schema</td></tr>
+        <tr><td><code>/api/messages</code></td><td>GET/POST</td><td>List or create messages</td></tr>
+        <tr><td><code>/api/files</code></td><td>GET/POST</td><td>List files or upload</td></tr>
+        <tr><td><code>/api/files/{id}</code></td><td>GET</td><td>Download a file</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="font-size:13.5px;color:var(--dim);margin-top:12px;">Authenticated endpoints require <code>Authorization: Bearer &lt;key&gt;</code> when <code>LOGBOOK_API_KEY</code> is set.</p>
+</section>
+
+<section id="compare" class="wrap" style="padding-top:0;">
+  <div class="sec-head">
+    <div class="eyebrow">Scope</div>
+    <h2>Logbook vs full Codicent.</h2>
+    <p>Same data model and semantics — the logbook trades multi-tenancy and cloud services for a zero-dependency local runtime. Outgrow it? Your messages port straight to <a href="https://codicent.com">codicent.com</a>.</p>
+  </div>
+  <div class="table-wrap" style="max-width:760px;">
+    <table>
+      <thead><tr><th></th><th>Logbook runtime</th><th>Full Codicent</th></tr></thead>
+      <tbody>
+        <tr><td>Runs as</td><td>Single binary</td><td>Docker / cloud</td></tr>
+        <tr><td>Database</td><td>SQLite</td><td>SQL Server / PostgreSQL</td></tr>
+        <tr><td>Files</td><td>Local, hash-based</td><td>Azure Blob Storage</td></tr>
+        <tr><td>Projects</td><td>Single</td><td>Multi-tenant</td></tr>
+        <tr><td>Auth</td><td>API key</td><td>Azure AD, Auth0, JWT</td></tr>
+        <tr><td>Real-time</td><td>Webhooks</td><td>Redis + SignalR</td></tr>
+        <tr><td>Dependencies</td><td>None</td><td>Azure, Redis, SQL</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<footer>
+  <div class="foot">
+    <div class="brand"><span class="mark"></span><span>Codicent<span class="sub">/logbook</span></span></div>
+    <div class="meta">
+      <span>MCP standard</span>
+      <a href="https://codicent.com">codicent.com</a>
+      <a href="https://github.com/izaxon/codicent-logbook">GitHub ↗</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  var CODES = {
+    hero: "curl -fsSL https://izaxon.github.io/codicent-logbook/install.sh | bash\nlogbook-server",
+    nix: "curl -fsSL https://izaxon.github.io/codicent-logbook/install.sh | bash\nlogbook-server",
+    win: "iwr https://izaxon.github.io/codicent-logbook/install.ps1 | iex\nlogbook-server",
+    manual: "curl -Lo logbook-server \\\n  https://github.com/izaxon/codicent-logbook/releases/latest/download/logbook-server-linux-x64\nchmod +x logbook-server && ./logbook-server",
+    tunnel: "export LOGBOOK_PROJECT=\"myapp\"\nexport LOGBOOK_API_KEY=\"mysecretkey\"\nlogbook-server --tunnel",
+    claude: "{\n  \"mcpServers\": {\n    \"codicent-logbook\": {\n      \"command\": \"/path/to/logbook-server\",\n      \"args\": [\"--stdio\"],\n      \"env\": { \"LOGBOOK_PROJECT\": \"myproject\" }\n    }\n  }\n}",
+    http: "{\n  \"mcpServers\": {\n    \"codicent-logbook\": {\n      \"url\": \"https://abc123.trycloudflare.com/mcp\",\n      \"headers\": { \"Authorization\": \"Bearer mysecretkey\" }\n    }\n  }\n}",
+    cursor: "{\n  \"mcpServers\": {\n    \"logbook\": {\n      \"command\": \"/path/to/logbook-server\",\n      \"args\": [\"--stdio\"],\n      \"env\": { \"LOGBOOK_PROJECT\": \"myproject\" }\n    }\n  }\n}",
+    openapi: "tools = load_tools_from_openapi(\"http://localhost:5100/openapi.json\")",
+    memory: "PostMessage(\"@myproject #memory #fact #auth\\n{\\\"fact\\\": \\\"Use JWT tokens for API auth\\\", \\\"citations\\\": \\\"src/auth.ts:15\\\"}\")\nGetDataMessages(tags: \"memory,auth\")"
+  };
+  document.querySelectorAll(".copy-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      var txt = CODES[btn.getAttribute("data-code")] || "";
+      var label = btn.querySelector("span");
+      var restore = label.textContent;
+      function done(){ label.textContent = "Copied ✓"; setTimeout(function(){ label.textContent = restore; }, 1300); }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).then(done).catch(done);
+      } else { done(); }
+    });
+  });
+  document.querySelectorAll(".tab-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      var tabs = btn.closest(".tabs");
+      tabs.querySelectorAll(".tab-btn").forEach(function(b){ b.classList.remove("active"); });
+      tabs.querySelectorAll(".tab-panel").forEach(function(p){ p.classList.remove("active"); });
+      btn.classList.add("active");
+      document.getElementById(btn.getAttribute("data-tab")).classList.add("active");
+    });
+  });
+</script>
+</body>
+</html>
