@@ -355,28 +355,35 @@
 <section id="mcp-tools" class="wrap">
   <div class="sec-head">
     <div class="eyebrow">MCP tools</div>
-    <h2>Twelve tools. One data model.</h2>
-    <p>Everything is a message — a string with <code>#tags</code>, <code>@mentions</code>, and optional embedded JSON. Tags are indexed into relational tables for fast querying.</p>
+    <h2>Sixteen tools. One data model.</h2>
+    <p>Everything is a message — a string with <code>#tags</code>, <code>@mentions</code>, and optional embedded JSON. Tags are indexed into relational tables for fast querying. Tool names are <strong>snake_case</strong> on the wire (MCP).</p>
   </div>
   <div class="catalog">
     <div class="group">
       <div class="group-title"><span class="di"></span><span>Messages</span></div>
       <div class="chips">
-        <span class="chip">PostMessage</span><span class="chip">GetMessages</span><span class="chip">GetDataMessages</span><span class="chip">GetMessageById</span><span class="chip">HideMessage</span>
+        <span class="chip">post_message</span><span class="chip">get_messages</span><span class="chip">get_data_messages</span><span class="chip">get_message_by_id</span><span class="chip">get_message_history</span><span class="chip">hide_message</span>
       </div>
       <p class="note">Post with <code>#tags</code> and JSON, search full-text, filter data messages by tag, version via <code>parentId</code>, soft-delete with <code>#hidden</code>.</p>
     </div>
     <div class="group">
+      <div class="group-title"><span class="di"></span><span>Memory</span></div>
+      <div class="chips">
+        <span class="chip">store_memory</span><span class="chip">recall_memory</span><span class="chip">reflect</span>
+      </div>
+      <p class="note">First-class agent memory helpers on top of the same tagged-message store.</p>
+    </div>
+    <div class="group">
       <div class="group-title"><span class="di"></span><span>Files</span></div>
       <div class="chips">
-        <span class="chip">UploadFile</span><span class="chip">DownloadFile</span><span class="chip">GetFileInfo</span><span class="chip">GetFiles</span>
+        <span class="chip">upload_file</span><span class="chip">download_file</span><span class="chip">get_file_info</span><span class="chip">get_files</span>
       </div>
       <p class="note">Base64 upload/download with content-addressed SHA-256 storage — or just drop files in <code>./inbox/</code>.</p>
     </div>
     <div class="group">
       <div class="group-title"><span class="di"></span><span>Webhooks</span></div>
       <div class="chips">
-        <span class="chip">RegisterWebhook</span><span class="chip">UnregisterWebhook</span><span class="chip">ListWebhooks</span>
+        <span class="chip">register_webhook</span><span class="chip">unregister_webhook</span><span class="chip">list_webhooks</span>
       </div>
       <p class="note">HMAC-SHA256-signed POSTs with <code>X-Logbook-Event</code>, <code>X-Logbook-Event-Id</code>, and <code>X-Logbook-Signature</code> headers.</p>
     </div>
@@ -385,19 +392,21 @@
   <h3>Agentic memory pattern</h3>
   <div class="card-flat" style="max-width:760px;">
     <div class="code-head pad">
-      <span class="ctitle">Persistent agent memory <span class="sub">· tagged JSON messages</span></span>
+      <span class="ctitle">Persistent agent memory <span class="sub">· tools + tagged JSON</span></span>
       <button class="copy-btn" data-code="memory"><span>Copy</span></button>
     </div>
-    <pre class="sm"><span class="c-comment"># store a fact</span>
-<span class="c-cmd">PostMessage(<span class="c-str">"@myproject #memory #fact #auth
-  {\"fact\": \"Use JWT tokens for API auth\", \"citations\": \"src/auth.ts:15\"}"</span>)</span>
+    <pre class="sm"><span class="c-comment"># store / recall (first-class tools)</span>
+<span class="c-cmd">store_memory(key: <span class="c-str">"auth"</span>, value: <span class="c-str">"Use JWT for API auth"</span>)</span>
+<span class="c-cmd">recall_memory(query: <span class="c-str">"authentication"</span>)</span>
 
-<span class="c-comment"># recall facts about authentication</span>
-<span class="c-cmd">GetDataMessages(tags: <span class="c-str">"memory,auth"</span>)</span>
+<span class="c-comment"># or raw tagged messages</span>
+<span class="c-cmd">post_message(<span class="c-str">"@myproject #memory #fact #auth
+  {\"fact\": \"Use JWT tokens for API auth\", \"citations\": \"src/auth.ts:15\"}"</span>)</span>
+<span class="c-cmd">get_data_messages(tags: <span class="c-str">"memory,auth"</span>)</span>
 
 <span class="c-comment"># update (new version) / expire</span>
-<span class="c-cmd">PostMessage(message: <span class="c-str">"..."</span>, parentId: <span class="c-str">"original-id"</span>)</span>
-<span class="c-cmd">HideMessage(messageId: <span class="c-str">"fact-id"</span>)</span></pre>
+<span class="c-cmd">post_message(message: <span class="c-str">"..."</span>, parentId: <span class="c-str">"original-id"</span>)</span>
+<span class="c-cmd">hide_message(messageId: <span class="c-str">"fact-id"</span>)</span></pre>
   </div>
 </section>
 
@@ -488,7 +497,7 @@
     http: "{\n  \"mcpServers\": {\n    \"codicent-logbook\": {\n      \"url\": \"https://abc123.trycloudflare.com/mcp\",\n      \"headers\": { \"Authorization\": \"Bearer mysecretkey\" }\n    }\n  }\n}",
     cursor: "{\n  \"mcpServers\": {\n    \"logbook\": {\n      \"command\": \"/path/to/logbook-server\",\n      \"args\": [\"--stdio\"],\n      \"env\": { \"LOGBOOK_PROJECT\": \"myproject\" }\n    }\n  }\n}",
     openapi: "tools = load_tools_from_openapi(\"http://localhost:5100/openapi.json\")",
-    memory: "PostMessage(\"@myproject #memory #fact #auth\\n{\\\"fact\\\": \\\"Use JWT tokens for API auth\\\", \\\"citations\\\": \\\"src/auth.ts:15\\\"}\")\nGetDataMessages(tags: \"memory,auth\")"
+    memory: "store_memory(key: \"auth\", value: \"Use JWT for API auth\")\nrecall_memory(query: \"authentication\")\npost_message(\"@myproject #memory #fact #auth\\n{\\\"fact\\\": \\\"Use JWT tokens for API auth\\\", \\\"citations\\\": \\\"src/auth.ts:15\\\"}\")\nget_data_messages(tags: \"memory,auth\")"
   };
   document.querySelectorAll(".copy-btn").forEach(function(btn){
     btn.addEventListener("click", function(){
