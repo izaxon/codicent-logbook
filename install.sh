@@ -2,7 +2,7 @@
 # install.sh — Install logbook-server (Codicent Logbook MCP runtime)
 #
 # Usage:
-#   curl -fsSL https://izaxon.github.io/codicent-logbook/install.sh | bash
+#   curl -fsSL https://logbook.codicent.ai/install.sh | bash
 #
 # Installs the self-contained logbook-server binary from the latest GitHub Release.
 # No .NET SDK required.
@@ -83,4 +83,4 @@ echo "Run: logbook-server"
 echo "     logbook-server --stdio     # stdio MCP mode (for Claude Desktop)"
 echo "     logbook-server --tunnel    # start Cloudflare Quick Tunnel"
 echo ""
-echo "See https://izaxon.github.io/codicent-logbook/ for documentation."
+echo "See https://logbook.codicent.ai/ for documentation."

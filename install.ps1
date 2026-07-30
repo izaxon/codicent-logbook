@@ -1,7 +1,7 @@
 # install.ps1 — Install logbook-server (Codicent Logbook MCP runtime) on Windows
 #
 # Usage (run in PowerShell):
-#   iwr https://izaxon.github.io/codicent-logbook/install.ps1 | iex
+#   iwr https://logbook.codicent.ai/install.ps1 | iex
 #
 # Installs the self-contained logbook-server.exe from the latest GitHub Release.
 # No .NET SDK required.
@@ -37,4 +37,4 @@ Write-Host "Run: logbook-server"
 Write-Host "     logbook-server --stdio     # stdio MCP mode (for Claude Desktop)"
 Write-Host "     logbook-server --tunnel    # start Cloudflare Quick Tunnel"
 Write-Host ""
-Write-Host "See https://izaxon.github.io/codicent-logbook/ for documentation."
+Write-Host "See https://logbook.codicent.ai/ for documentation."

@@ -175,7 +175,7 @@
         <button class="copy-btn" data-code="hero"><span>Copy</span></button>
       </div>
       <pre><span class="c-comment"># one line installs it</span>
-<span class="c-cmd">curl -fsSL https://izaxon.github.io/codicent-logbook/install.sh | bash</span>
+<span class="c-cmd">curl -fsSL https://logbook.codicent.ai/install.sh | bash</span>
 
 <span class="c-cmd">logbook-server</span>
 <span class="c-comment">┌─────────────────────────────────────┐
@@ -216,7 +216,7 @@
           <span class="ctitle">Install script <span class="sub">· bash</span></span>
           <button class="copy-btn" data-code="nix"><span>Copy</span></button>
         </div>
-        <pre class="sm"><span class="c-cmd">curl -fsSL https://izaxon.github.io/codicent-logbook/install.sh | bash</span>
+        <pre class="sm"><span class="c-cmd">curl -fsSL https://logbook.codicent.ai/install.sh | bash</span>
 <span class="c-cmd">logbook-server</span>
 <span class="c-comment"># → open http://localhost:5100 — MCP ready at /mcp</span></pre>
       </div>
@@ -228,7 +228,7 @@
           <span class="ctitle">Install script <span class="sub">· PowerShell</span></span>
           <button class="copy-btn" data-code="win"><span>Copy</span></button>
         </div>
-        <pre class="sm"><span class="c-cmd">iwr https://izaxon.github.io/codicent-logbook/install.ps1 | iex</span>
+        <pre class="sm"><span class="c-cmd">iwr https://logbook.codicent.ai/install.ps1 | iex</span>
 <span class="c-cmd">logbook-server</span>
 <span class="c-comment"># → open http://localhost:5100 — MCP ready at /mcp</span></pre>
       </div>
@@ -479,9 +479,9 @@
 
 <script>
   var CODES = {
-    hero: "curl -fsSL https://izaxon.github.io/codicent-logbook/install.sh | bash\nlogbook-server",
-    nix: "curl -fsSL https://izaxon.github.io/codicent-logbook/install.sh | bash\nlogbook-server",
-    win: "iwr https://izaxon.github.io/codicent-logbook/install.ps1 | iex\nlogbook-server",
+    hero: "curl -fsSL https://logbook.codicent.ai/install.sh | bash\nlogbook-server",
+    nix: "curl -fsSL https://logbook.codicent.ai/install.sh | bash\nlogbook-server",
+    win: "iwr https://logbook.codicent.ai/install.ps1 | iex\nlogbook-server",
     manual: "curl -Lo logbook-server \\\n  https://github.com/izaxon/codicent-logbook/releases/latest/download/logbook-server-linux-x64\nchmod +x logbook-server && ./logbook-server",
     tunnel: "export LOGBOOK_PROJECT=\"myapp\"\nexport LOGBOOK_API_KEY=\"mysecretkey\"\nlogbook-server --tunnel",
     claude: "{\n  \"mcpServers\": {\n    \"codicent-logbook\": {\n      \"command\": \"/path/to/logbook-server\",\n      \"args\": [\"--stdio\"],\n      \"env\": { \"LOGBOOK_PROJECT\": \"myproject\" }\n    }\n  }\n}",

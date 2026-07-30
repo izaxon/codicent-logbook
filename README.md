@@ -5,21 +5,21 @@ executable. SQLite storage, MCP server (stdio + HTTP), REST API with OpenAPI sch
 file inbox, and public tunnel support. Works with Claude Desktop, Cursor, and any
 MCP client.
 
-**Website & docs: https://izaxon.github.io/codicent-logbook/**
+**Website & docs: https://logbook.codicent.ai/**
 
 ## Install
 
 Linux / macOS:
 
 ```bash
-curl -fsSL https://izaxon.github.io/codicent-logbook/install.sh | bash
+curl -fsSL https://logbook.codicent.ai/install.sh | bash
 logbook-server
 ```
 
 Windows (PowerShell):
 
 ```powershell
-iwr https://izaxon.github.io/codicent-logbook/install.ps1 | iex
+iwr https://logbook.codicent.ai/install.ps1 | iex
 logbook-server
 ```
 
@@ -41,6 +41,6 @@ Issues and feature requests are welcome in this repo's
 
 ## Links
 
-- [Website](https://izaxon.github.io/codicent-logbook/) — features, quick start, MCP tools, configuration
+- [Website](https://logbook.codicent.ai/) — features, quick start, MCP tools, configuration
 - [Releases](https://github.com/izaxon/codicent-logbook/releases) — self-contained binaries for all platforms
 - [codicent.com](https://codicent.com) — the full Codicent platform
