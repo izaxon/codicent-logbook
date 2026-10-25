@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Logbook CLI — memory in plain files</title>
+<meta name="description" content="logbook is a single-binary CLI that keeps an immutable, versioned log as plain Markdown files. No database, no server, no cloud — grep it, git it, and give your AI agents persistent memory with one shell command.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --accent:#E8B45A;
+    --canvas:#0B0D0F;
+    --surface:#0C0F11;
+    --text:#ECEEF0;
+    --muted:#98A0A8;
+    --dim:#6B747C;
+    --border:rgba(255,255,255,0.09);
+    --hairline:rgba(255,255,255,0.07);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--canvas);}
+  html{scroll-behavior:smooth;}
+  body{color:var(--text);font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden;}
+  a{color:var(--accent);text-decoration:none;}
+  a:hover{color:var(--text);}
+  ::selection{background:var(--accent);color:var(--canvas);}
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:8px;}
+  h1,h2,h3{font-family:'Space Grotesk',sans-serif;letter-spacing:-0.02em;}
+  @keyframes floatGlow{0%,100%{transform:translate(-50%,-50%) scale(1);}50%{transform:translate(-46%,-54%) scale(1.08);}}
+
+  .wrap{position:relative;z-index:1;max-width:1160px;margin:0 auto;padding-left:clamp(20px,5vw,48px);padding-right:clamp(20px,5vw,48px);}
+  .bg-grid,.bg-glow{position:absolute;pointer-events:none;}
+  .bg-grid{inset:0;opacity:.42;background-image:linear-gradient(rgba(255,255,255,0.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.035) 1px,transparent 1px);background-size:64px 64px;-webkit-mask-image:linear-gradient(180deg,#000,transparent 90%);mask-image:linear-gradient(180deg,#000,transparent 90%);}
+  .bg-glow{top:0;left:50%;width:900px;height:640px;opacity:.45;background:radial-gradient(circle,color-mix(in oklab,var(--accent) 40%,transparent),transparent 68%);filter:blur(20px);transform:translate(-50%,-50%);animation:floatGlow 14s ease-in-out infinite;}
+
+  nav{position:sticky;top:0;z-index:30;display:flex;align-items:center;justify-content:space-between;padding:18px clamp(20px,5vw,48px);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);background:rgba(11,13,15,0.62);border-bottom:1px solid rgba(255,255,255,0.06);}
+  .brand{display:flex;align-items:center;gap:11px;font-family:'Space Grotesk';font-weight:600;font-size:17px;letter-spacing:-0.01em;}
+  .brand .mark{width:20px;height:20px;background:var(--accent);border-radius:5px;transform:rotate(45deg);box-shadow:0 0 18px color-mix(in oklab,var(--accent) 60%,transparent);}
+  .brand .sub{color:var(--dim);font-weight:400;}
+  .nav-links{display:flex;align-items:center;gap:clamp(14px,3vw,30px);font-size:14.5px;}
+  .nav-links a.plain{color:#B7BEC5;}
+  .nav-links a.plain:hover{color:var(--text);}
+  .nav-links a.plain.hide-sm{display:none;}
+  @media(min-width:760px){.nav-links a.plain.hide-sm{display:inline;}}
+  .nav-cta{display:inline-flex;align-items:center;gap:7px;color:var(--text)!important;border:1px solid rgba(255,255,255,0.14);padding:8px 15px;border-radius:9px;font-weight:500;transition:border-color .18s,background .18s;}
+  .nav-cta:hover{border-color:var(--accent);background:rgba(255,255,255,0.04);}
+  @media(max-width:560px){.brand .sub{display:none;}.nav-links{gap:16px;font-size:14px;}.nav-cta{padding:7px 12px;}}
+
+  header{padding-top:clamp(48px,8vw,92px);padding-bottom:clamp(40px,6vw,72px);}
+  .hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(330px,100%),1fr));gap:clamp(36px,5vw,64px);align-items:center;}
+  .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 13px;border:1px solid rgba(255,255,255,0.12);border-radius:100px;font-family:'JetBrains Mono';font-size:12px;color:#B7BEC5;margin-bottom:26px;}
+  .pill .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent);}
+  h1{font-weight:600;font-size:clamp(38px,5.6vw,64px);line-height:1.02;letter-spacing:-0.025em;margin:0 0 22px;text-wrap:balance;}
+  h1 .hl{color:var(--accent);}
+  .lede{font-size:clamp(16px,2vw,19px);line-height:1.6;color:var(--muted);max-width:47ch;margin:0 0 34px;}
+  .cta-row{display:flex;flex-wrap:wrap;gap:13px;}
+  .btn-primary{display:inline-flex;align-items:center;gap:9px;background:var(--accent);color:#13100A!important;font-family:'Space Grotesk';font-weight:600;font-size:15px;padding:14px 24px;border-radius:11px;transition:filter .18s,transform .18s;}
+  .btn-primary:hover{filter:brightness(1.08);transform:translateY(-1px);}
+  .btn-primary .arr{font-family:'JetBrains Mono';font-size:16px;}
+  .btn-ghost{display:inline-flex;align-items:center;gap:9px;color:var(--text)!important;border:1px solid rgba(255,255,255,0.16);font-family:'Space Grotesk';font-weight:500;font-size:15px;padding:14px 22px;border-radius:11px;transition:border-color .18s,background .18s;}
+  .btn-ghost:hover{border-color:rgba(255,255,255,0.34);background:rgba(255,255,255,0.03);}
+
+  .code-card{border:1px solid var(--border);border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.01));box-shadow:0 24px 60px -24px rgba(0,0,0,0.7);overflow:hidden;}
+  .code-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--hairline);background:rgba(255,255,255,0.02);}
+  .code-head.pad{padding:14px 18px;}
+  .dots{display:flex;align-items:center;gap:7px;}
+  .dots i{width:11px;height:11px;border-radius:50%;background:#3A4048;display:block;}
+  .fname{font-family:'JetBrains Mono';font-size:12px;color:var(--dim);margin-left:8px;}
+  .ctitle{font-family:'Space Grotesk';font-weight:500;font-size:14.5px;}
+  .ctitle .sub{color:var(--dim);font-weight:400;}
+  .copy-btn{display:inline-flex;align-items:center;gap:6px;background:transparent;border:1px solid rgba(255,255,255,0.12);color:#B7BEC5;font-family:'JetBrains Mono';font-size:11px;padding:5px 10px;border-radius:7px;cursor:pointer;transition:border-color .18s,color .18s;}
+  .copy-btn:hover{border-color:var(--accent);color:var(--text);}
+  pre{margin:0;padding:20px 18px;font-family:'JetBrains Mono';font-size:13px;line-height:1.75;overflow-x:auto;color:#B7BEC5;}
+  pre.sm{padding:18px;font-size:12.5px;line-height:1.7;}
+  .c-comment{color:#5B6472;}
+  .c-cmd{color:#ECEEF0;}
+  .c-str{color:#E5B567;}
+  .c-key{color:#7AA2F7;}
+  .c-ok{color:#6EE7A0;}
+
+  .strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(210px,100%),1fr));gap:1px;margin-top:clamp(44px,6vw,72px);background:var(--hairline);border:1px solid var(--hairline);border-radius:14px;overflow:hidden;}
+  .strip .cell{padding:22px 24px;background:var(--surface);}
+  .strip .big{font-family:'Space Grotesk';font-weight:600;font-size:26px;color:var(--text);}
+  .strip .small{font-size:13.5px;color:#8B9299;margin-top:4px;}
+
+  section{padding-top:clamp(56px,8vw,96px);padding-bottom:clamp(56px,8vw,96px);}
+  .sec-head{max-width:640px;margin-bottom:44px;}
+  .eyebrow{font-family:'JetBrains Mono';font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:var(--accent);margin-bottom:14px;}
+  h2{font-weight:600;font-size:clamp(28px,4vw,42px);line-height:1.08;margin:0 0 16px;}
+  .sec-head p{font-size:17px;line-height:1.6;color:var(--muted);margin:0;}
+  h3{font-weight:600;font-size:19px;margin:34px 0 12px;}
+
+  .two-col{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr));gap:20px;}
+  .three-col{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:20px;}
+  .card-flat{border:1px solid var(--border);border-radius:14px;background:rgba(255,255,255,0.02);overflow:hidden;}
+
+  .features{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:1px;background:var(--hairline);border:1px solid var(--hairline);border-radius:16px;overflow:hidden;}
+  .feature{background:var(--surface);padding:26px;}
+  .feature h3{margin:0 0 8px;font-size:17px;}
+  .feature p{font-size:14.5px;line-height:1.55;color:var(--muted);margin:0;}
+  .feature code{font-family:'JetBrains Mono';font-size:12.5px;color:#C6CCD2;background:rgba(255,255,255,0.05);padding:1px 6px;border-radius:5px;}
+  .feature .fi{width:34px;height:34px;border-radius:9px;background:color-mix(in oklab,var(--accent) 15%,transparent);display:flex;align-items:center;justify-content:center;font-size:16px;margin-bottom:14px;}
+
+  .catalog{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:1px;background:var(--hairline);border:1px solid var(--hairline);border-radius:16px;overflow:hidden;}
+  .group{background:var(--surface);padding:26px;}
+  .group-title{display:flex;align-items:center;gap:9px;margin-bottom:18px;}
+  .group-title .di{width:9px;height:9px;background:var(--accent);border-radius:2px;transform:rotate(45deg);}
+  .group-title span:last-child{font-family:'Space Grotesk';font-weight:600;font-size:15px;}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;font-family:'JetBrains Mono';font-size:12.5px;}
+  .chip{padding:5px 10px;background:rgba(255,255,255,0.04);border:1px solid var(--hairline);border-radius:7px;color:#C6CCD2;}
+  .group .note{font-size:13px;color:var(--dim);margin:14px 0 0;line-height:1.5;}
+  .group .note code{font-family:'JetBrains Mono';font-size:12px;}
+
+  .table-wrap{border:1px solid var(--border);border-radius:14px;overflow-x:auto;background:rgba(255,255,255,0.02);}
+  table{width:100%;border-collapse:collapse;font-size:14px;}
+  th,td{text-align:left;padding:12px 16px;border-bottom:1px solid var(--hairline);vertical-align:top;}
+  th{font-family:'Space Grotesk';font-weight:600;font-size:13px;color:#B7BEC5;background:rgba(255,255,255,0.03);}
+  tr:last-child td{border-bottom:none;}
+  td code,li code,p code{font-family:'JetBrains Mono';font-size:12.5px;color:#C6CCD2;background:rgba(255,255,255,0.05);padding:1px 6px;border-radius:5px;white-space:nowrap;}
+  td{color:var(--muted);}
+  td:first-child{color:var(--text);}
+
+  .tabs .tab-bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;}
+  .tab-btn{background:transparent;border:1px solid rgba(255,255,255,0.14);color:#B7BEC5;font-family:'Space Grotesk';font-weight:500;font-size:13.5px;padding:8px 16px;border-radius:9px;cursor:pointer;transition:border-color .18s,color .18s,background .18s;}
+  .tab-btn:hover{border-color:var(--accent);color:var(--text);}
+  .tab-btn.active{background:var(--accent);border-color:var(--accent);color:#13100A;}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+
+  .callout{border:1px solid color-mix(in oklab,var(--accent) 38%,transparent);background:color-mix(in oklab,var(--accent) 7%,transparent);border-radius:12px;padding:14px 18px;font-size:14px;line-height:1.6;color:#D8DCE0;margin:18px 0;}
+  .callout strong{color:var(--text);}
+
+  ul.plain{margin:10px 0 0;padding-left:22px;color:var(--muted);font-size:14.5px;line-height:1.7;}
+
+  footer{border-top:1px solid var(--hairline);background:#0A0C0E;}
+  .foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:20px;padding:40px clamp(20px,5vw,48px);max-width:1160px;margin:0 auto;}
+  .foot .meta{display:flex;flex-wrap:wrap;gap:22px;font-size:13px;color:var(--dim);font-family:'JetBrains Mono';}
+  .foot .meta a{color:#B7BEC5;}
+  .foot .mark{width:18px;height:18px;background:var(--accent);border-radius:5px;transform:rotate(45deg);}
+  .levels{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:16px;align-items:stretch;}
+  .level{position:relative;border:1px solid var(--border);border-radius:16px;background:rgba(255,255,255,0.02);padding:24px;display:flex;flex-direction:column;gap:10px;color:var(--text)!important;transition:border-color .18s,background .18s;}
+  a.level:hover{border-color:rgba(255,255,255,0.28);background:rgba(255,255,255,0.035);}
+  .level.here{border-color:color-mix(in oklab,var(--accent) 55%,transparent);background:color-mix(in oklab,var(--accent) 6%,transparent);}
+  .level .lv{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:22px;font-family:'JetBrains Mono';font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);}
+  .level.here .lv{color:var(--accent);}
+  .level h3{margin:0;font-size:20px;}
+  .level .what{font-family:'JetBrains Mono';font-size:12.5px;color:#C6CCD2;}
+  .level p{margin:0;font-size:14.5px;line-height:1.55;color:var(--muted);}
+  .level .go{margin-top:auto;padding-top:8px;font-family:'Space Grotesk';font-weight:500;font-size:14px;color:var(--accent);}
+  .level .here-tag{flex:none;font-family:'JetBrains Mono';font-size:10.5px;letter-spacing:.04em;text-transform:none;padding:3px 9px;border-radius:100px;background:var(--accent);color:#13100A;}
+  .levels-note{font-size:14px;line-height:1.6;color:var(--dim);margin:18px 0 0;max-width:760px;}
+  .levels-note code{font-family:'JetBrains Mono';font-size:12.5px;color:#C6CCD2;background:rgba(255,255,255,0.05);padding:1px 6px;border-radius:5px;}
+  .tree{color:#B7BEC5;}
+  .tree .d{color:#7AA2F7;}
+</style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+<div class="bg-glow"></div>
+
+<nav>
+  <a class="brand" href="./" style="color:var(--text);"><span class="mark"></span><span>Codicent<span class="sub">/logbook/cli</span></span></a>
+  <div class="nav-links">
+    <a class="plain" href="#quickstart">Install</a>
+    <a class="plain hide-sm" href="#commands">Commands</a>
+    <a class="plain hide-sm" href="#agents">Agents</a>
+    <a class="plain hide-sm" href="#remote">Remote</a>
+    <a class="plain" href="../">Server</a>
+    <a class="nav-cta" href="https://github.com/izaxon/codicent-logbook">GitHub</a>
+  </div>
+</nav>
+
+<header class="wrap">
+  <div class="hero">
+    <div>
+      <div class="pill"><span class="dot"></span>single binary · plain files · zero services</div>
+      <h1>Memory in <span class="hl">plain files</span>.</h1>
+      <p class="lede">An immutable, versioned log for humans and AI agents. Every entry is a Markdown file with YAML frontmatter on your own disk — grep it, diff it, commit it to git. No database, no server, no cloud account.</p>
+      <div class="cta-row">
+        <a class="btn-primary" href="#quickstart">Install in 30 seconds <span class="arr">→</span></a>
+        <a class="btn-ghost" href="#levels">Compare levels</a>
+      </div>
+    </div>
+
+    <div class="code-card">
+      <div class="code-head">
+        <div class="dots"><i></i><i></i><i></i><span class="fname">terminal</span></div>
+        <button class="copy-btn" data-code="hero"><span>Copy</span></button>
+      </div>
+      <pre><span class="c-cmd">curl -fsSL https://logbook.codicent.ai/cli/install.sh | bash</span>
+
+<span class="c-cmd">logbook init</span>
+<span class="c-cmd">logbook add <span class="c-str">"Customer prefers dark mode #memory #ux"</span></span>
+<span class="c-ok">data/entries/2026/10/25/2026-10-25T131541Z__cef85f20….md</span>
+
+<span class="c-cmd">logbook list -t memory --length 1</span>
+<span class="c-cmd">logbook find -t memory <span class="c-str">"dark mode"</span></span></pre>
+    </div>
+  </div>
+
+  <div class="strip">
+    <div class="cell"><div class="big">0 services</div><div class="small">No DB, no daemon, no port</div></div>
+    <div class="cell"><div class="big">Markdown</div><div class="small">YAML frontmatter, human-readable</div></div>
+    <div class="cell"><div class="big">Immutable</div><div class="small">Amend = new version, full history</div></div>
+    <div class="cell"><div class="big">Remote-ready</div><div class="small"><code style="font-size:12px;">logbook login</code> → a Codicent project</div></div>
+  </div>
+</header>
+
+<section id="quickstart" class="wrap">
+  <div class="sec-head">
+    <div class="eyebrow">Quick start</div>
+    <h2>One binary on your PATH.</h2>
+    <p>The install script picks the right self-contained binary for your platform from GitHub Releases. No .NET SDK needed.</p>
+  </div>
+
+  <div class="tabs">
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="tab-nix">Linux / macOS</button>
+      <button class="tab-btn" data-tab="tab-win">Windows</button>
+      <button class="tab-btn" data-tab="tab-manual">Manual download</button>
+    </div>
+
+    <div id="tab-nix" class="tab-panel active">
+      <div class="card-flat">
+        <div class="code-head pad">
+          <span class="ctitle">Install script <span class="sub">· bash</span></span>
+          <button class="copy-btn" data-code="nix"><span>Copy</span></button>
+        </div>
+        <pre class="sm"><span class="c-cmd">curl -fsSL https://logbook.codicent.ai/cli/install.sh | bash</span>
+<span class="c-cmd">logbook init</span>
+<span class="c-comment"># pin a version: … | LOGBOOK_VERSION=0.8.0 bash</span></pre>
+      </div>
+    </div>
+
+    <div id="tab-win" class="tab-panel">
+      <div class="card-flat">
+        <div class="code-head pad">
+          <span class="ctitle">Install script <span class="sub">· PowerShell</span></span>
+          <button class="copy-btn" data-code="win"><span>Copy</span></button>
+        </div>
+        <pre class="sm"><span class="c-cmd">iwr https://logbook.codicent.ai/cli/install.ps1 | iex</span>
+<span class="c-cmd">logbook init</span>
+<span class="c-comment"># installs to %USERPROFILE%\.logbook and adds it to your user PATH</span></pre>
+      </div>
+    </div>
+
+    <div id="tab-manual" class="tab-panel">
+      <div class="card-flat">
+        <div class="code-head pad">
+          <span class="ctitle">Direct download <span class="sub">· pick your platform</span></span>
+          <button class="copy-btn" data-code="manual"><span>Copy</span></button>
+        </div>
+        <pre class="sm"><span class="c-comment"># assets: logbook-linux-x64, -linux-arm64, -osx-arm64, -osx-x64, -win-x64.exe</span>
+<span class="c-cmd">curl -Lo logbook \
+  https://github.com/izaxon/codicent-logbook/releases/download/logbook-v0.8.0/logbook-linux-x64</span>
+<span class="c-cmd">chmod +x logbook && ./logbook --version</span></pre>
+      </div>
+      <p style="font-size:14px;color:var(--muted);margin-top:14px;">CLI releases are tagged <code>logbook-v*</code> in <a href="https://github.com/izaxon/codicent-logbook/releases">github.com/izaxon/codicent-logbook/releases</a> (next to the <code>logbook-server-v*</code> releases).</p>
+    </div>
+  </div>
+</section>
+
+<section id="levels" class="wrap">
+  <div class="sec-head">
+    <div class="eyebrow">Choose your level</div>
+    <h2>Start with files. Grow without migrating.</h2>
+    <p>Three layers, one data model: messages with <code>#tags</code>, JSON data messages and immutable versions. Pick the smallest one that does the job.</p>
+  </div>
+  <div class="levels">
+    <div class="level here">
+      <div class="lv"><span>Level 1 · Files</span><span class="here-tag">You are here</span></div>
+      <h3>logbook CLI</h3>
+      <div class="what">logbook · Markdown files</div>
+      <p>Plain files on disk, driven from the shell. For scripts, one agent&#39;s memory or a personal work log. Nothing runs in the background.</p>
+    </div>
+    <a class="level" href="../">
+      <div class="lv">Level 2 · Local runtime</div>
+      <h3>Logbook server</h3>
+      <div class="what">logbook-server · SQLite + MCP</div>
+      <p>One process with SQLite, an MCP server, OpenAPI, a file inbox and an optional public tunnel. For Claude Desktop, Cursor and other MCP clients.</p>
+      <span class="go">Logbook server →</span>
+    </a>
+    <a class="level" href="https://codicent.com">
+      <div class="lv">Level 3 · Platform</div>
+      <h3>Codicent</h3>
+      <div class="what">codicent.com · teams + automation</div>
+      <p>Multi-user projects, apps and 100+ automation tags (<code>#ai</code>, <code>#transform</code>, <code>#ocr</code>…) that turn messages into pipelines. For teams and production workflows.</p>
+      <span class="go">codicent.com ↗</span>
+    </a>
+  </div>
+  <p class="levels-note">Same model all the way up: the CLI writes straight to a Codicent project after <code>logbook login</code>, and <code>logbook data</code> export/import moves records between instances.</p>
+</section>
+
+<section id="commands" class="wrap">
+  <div class="sec-head">
+    <div class="eyebrow">Commands</div>
+    <h2>A handful of verbs.</h2>
+    <p>Every command is a plain shell call — easy for people, trivial for agents. Run <code>logbook</code>, <code>logbook data</code> or <code>logbook chat</code> for full help.</p>
+  </div>
+  <div class="catalog">
+    <div class="group">
+      <div class="group-title"><span class="di"></span><span>Entries</span></div>
+      <div class="chips">
+        <span class="chip">init</span><span class="chip">add</span><span class="chip">get</span><span class="chip">list</span><span class="chip">find</span><span class="chip">history</span><span class="chip">status</span>
+      </div>
+      <p class="note">Tags come from <code>#markers</code> in the text or <code>-t a,b</code>. <code>--amend &lt;id&gt;</code> writes a new version; <code>list</code> shows only the latest, newest first, with <code>--from/--to</code> and <code>--start/--length</code>.</p>
+    </div>
+    <div class="group">
+      <div class="group-title"><span class="di"></span><span>Data messages</span></div>
+      <div class="chips">
+        <span class="chip">data set</span><span class="chip">data get</span><span class="chip">data amend</span><span class="chip">data hide</span><span class="chip">data import</span>
+      </div>
+      <p class="note">JSON key-value records with <code>--filter k=v</code>, <code>--format entry|json|csv|table|export</code> and idempotent export → import between instances.</p>
+    </div>
+    <div class="group">
+      <div class="group-title"><span class="di"></span><span>Remote &amp; chat</span></div>
+      <div class="chips">
+        <span class="chip">login</span><span class="chip">logout</span><span class="chip">chat list</span><span class="chip">chat export</span>
+      </div>
+      <p class="note">Device-flow login stores a <code>.logbook-session</code> in the current folder; every command then runs against that Codicent project instead of local files.</p>
+    </div>
+  </div>
+
+  <div class="two-col" style="margin-top:20px;">
+    <div class="card-flat">
+      <div class="code-head pad">
+        <span class="ctitle">Everyday use <span class="sub">· entries</span></span>
+        <button class="copy-btn" data-code="entries"><span>Copy</span></button>
+      </div>
+      <pre class="sm"><span class="c-cmd">logbook add <span class="c-str">"Deployed 1.12.2 to prod #deploy #prod"</span></span>
+<span class="c-cmd">echo <span class="c-str">"long notes…"</span> | logbook add -t notes</span>
+<span class="c-cmd">logbook add -t deploy --amend &lt;id&gt; <span class="c-str">"Deployed 1.12.3"</span></span>
+<span class="c-cmd">logbook list -t deploy --from 2026-10-01</span>
+<span class="c-cmd">logbook find --body-only <span class="c-str">"rollback"</span></span>
+<span class="c-cmd">logbook history &lt;id&gt;</span></pre>
+    </div>
+    <div class="card-flat">
+      <div class="code-head pad">
+        <span class="ctitle">Structured records <span class="sub">· data messages</span></span>
+        <button class="copy-btn" data-code="data"><span>Copy</span></button>
+      </div>
+      <pre class="sm"><span class="c-cmd">logbook data set -t customer <span class="c-str">'{"name":"Acme","status":"active"}'</span></span>
+<span class="c-cmd">logbook data get -t customer --filter status=active</span>
+<span class="c-cmd">logbook data get -t customer --format table</span>
+<span class="c-cmd">logbook data get -t customer --format export --all \
+  --output customers.json</span>
+<span class="c-cmd">logbook data import customers.json --dry-run</span></pre>
+    </div>
+  </div>
+</section>
+
+<section id="format" class="wrap" style="padding-top:0;">
+  <div class="sec-head">
+    <div class="eyebrow">On disk</div>
+    <h2>Files you can read without the tool.</h2>
+    <p>Entries are never rewritten or deleted. Tags are folders of links, superseded versions are marked — so plain <code>grep</code>, <code>ls</code> and <code>git log</code> keep working.</p>
+  </div>
+  <div class="two-col">
+    <div class="card-flat">
+      <div class="code-head pad"><span class="ctitle">An entry <span class="sub">· Markdown + YAML</span></span></div>
+      <pre class="sm"><span class="c-comment">---</span>
+<span class="c-key">id</span>: 3f2a1b4c-…
+<span class="c-key">created_utc</span>: 2026-10-25T13:15:41Z
+<span class="c-key">tags</span>: [agent, memory]
+<span class="c-key">parent_id</span>: 9b7e…     <span class="c-comment"># previous version</span>
+<span class="c-key">original_id</span>: 9b7e…   <span class="c-comment"># chain root</span>
+<span class="c-comment">---</span>
+
+<span class="c-cmd">User confirmed they prefer dark mode in all apps.</span></pre>
+    </div>
+    <div class="card-flat">
+      <div class="code-head pad"><span class="ctitle">The data folder <span class="sub">· LOGBOOK_ROOT</span></span></div>
+      <pre class="sm tree"><span class="d">data/</span>
+├── <span class="d">entries/</span>YYYY/MM/DD/&lt;ts&gt;__&lt;id&gt;.md
+│     <span class="c-comment"># immutable entry files</span>
+├── <span class="d">tags/</span>&lt;tag&gt;/&lt;ts&gt;__&lt;id&gt;.md
+│     <span class="c-comment"># links into entries/</span>
+└── <span class="d">superseded/</span>&lt;id&gt;
+      <span class="c-comment"># marker: a newer version exists</span></pre>
+      <p style="font-size:13.5px;color:var(--dim);margin:0;padding:0 18px 18px;">On Windows without Developer Mode, tag links fall back to file copies — queries behave the same.</p>
+    </div>
+  </div>
+</section>
+
+<section id="agents" class="wrap">
+  <div class="sec-head">
+    <div class="eyebrow">For AI agents</div>
+    <h2>Persistent memory is one shell call away.</h2>
+    <p>Agents forget between sessions. Any agent that can run a command — Claude Code, Codex, OpenClaw, a cron script — can write decisions down and recall them later. No API, no auth, no SDK.</p>
+  </div>
+  <div class="two-col">
+    <div class="card-flat">
+      <div class="code-head pad">
+        <span class="ctitle">Agent instructions <span class="sub">· CLAUDE.md / AGENTS.md</span></span>
+        <button class="copy-btn" data-code="agentmd"><span>Copy</span></button>
+      </div>
+      <pre class="sm"><span class="c-comment">## Memory</span>
+Use the `logbook` CLI as persistent memory.
+- Recall first: `logbook list -t memory --length 20`
+  or `logbook find -t memory "&lt;topic&gt;"`
+- Record decisions: `logbook add "&lt;fact&gt; #memory #&lt;topic&gt;"`
+- Correct a fact: `logbook add --amend &lt;id&gt; -t memory "&lt;new&gt;"`
+- Never edit files under data/ by hand.</pre>
+    </div>
+    <div class="card-flat">
+      <div class="code-head pad">
+        <span class="ctitle">OpenClaw <span class="sub">· shell tool</span></span>
+        <button class="copy-btn" data-code="openclaw"><span>Copy</span></button>
+      </div>
+      <pre class="sm"><span class="c-key">tools</span>:
+  - <span class="c-key">name</span>: logbook
+    <span class="c-key">type</span>: shell
+    <span class="c-key">description</span>: Persistent memory log. Immutable, tagged, versioned.
+    <span class="c-key">commands</span>:
+      <span class="c-key">add</span>:     <span class="c-str">"logbook add -t {tags} {message}"</span>
+      <span class="c-key">list</span>:    <span class="c-str">"logbook list -t {tags}"</span>
+      <span class="c-key">find</span>:    <span class="c-str">"logbook find -t {tags} {pattern}"</span>
+      <span class="c-key">get</span>:     <span class="c-str">"logbook get {id}"</span>
+      <span class="c-key">history</span>: <span class="c-str">"logbook history {id}"</span></pre>
+    </div>
+  </div>
+  <div class="callout">Need MCP instead of shell calls (Claude Desktop, Cursor)? That's the <a href="../">Logbook server</a> — same model, served over MCP and OpenAPI.</div>
+</section>
+
+<section id="remote" class="wrap">
+  <div class="sec-head">
+    <div class="eyebrow">Remote backend</div>
+    <h2>Same commands, shared project.</h2>
+    <p>Log in once and the CLI stores entries in a Codicent project instead of local files — so a team, or several agents on different machines, share one log. Entries become Codicent messages; data commands map to <code>#data</code> messages.</p>
+  </div>
+  <div class="two-col">
+    <div class="card-flat">
+      <div class="code-head pad">
+        <span class="ctitle">Interactive <span class="sub">· device-flow login</span></span>
+        <button class="copy-btn" data-code="login"><span>Copy</span></button>
+      </div>
+      <pre class="sm"><span class="c-cmd">logbook login</span>                       <span class="c-comment"># codicent.com, project "logbook"</span>
+<span class="c-cmd">logbook login --url https://myserver.com --project myproj</span>
+<span class="c-cmd">logbook status</span>                      <span class="c-comment"># mode, URL, project, expiry</span>
+<span class="c-cmd">logbook add <span class="c-str">"Shared note #team"</span></span>
+<span class="c-cmd">logbook logout</span></pre>
+    </div>
+    <div class="card-flat">
+      <div class="code-head pad">
+        <span class="ctitle">CI &amp; automation <span class="sub">· environment</span></span>
+        <button class="copy-btn" data-code="env"><span>Copy</span></button>
+      </div>
+      <pre class="sm"><span class="c-cmd">export LOGBOOK_REMOTE_URL=<span class="c-str">"https://codicent.com"</span></span>
+<span class="c-cmd">export LOGBOOK_REMOTE_TOKEN=<span class="c-str">"&lt;api-token&gt;"</span></span>
+<span class="c-cmd">export LOGBOOK_PROJECT=<span class="c-str">"myproject"</span></span>
+<span class="c-cmd">logbook data get -t customer --format json</span>
+<span class="c-comment"># env vars win over .logbook-session</span></pre>
+    </div>
+  </div>
+  <p style="font-size:13.5px;color:var(--dim);margin-top:14px;">Remote mode searches full message content only — <code>--body-only</code>/<code>--meta-only</code> are local-mode features.</p>
+</section>
+
+<section id="configuration" class="wrap" style="padding-top:0;">
+  <div class="sec-head">
+    <div class="eyebrow">Configuration</div>
+    <h2>A few environment variables.</h2>
+    <p>Nothing to configure for local use: the CLI walks up from the current folder to find <code>data/entries/</code>, like git finds <code>.git</code>.</p>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>LOGBOOK_ROOT</code></td><td><em>(nearest folder with <code>data/entries/</code>, else cwd)</em></td><td>Where the local log lives.</td></tr>
+        <tr><td><code>LOGBOOK_REMOTE_URL</code></td><td><em>(none)</em></td><td>Codicent base URL; with a token, switches every command to remote mode.</td></tr>
+        <tr><td><code>LOGBOOK_REMOTE_TOKEN</code></td><td><em>(none)</em></td><td>Bearer token for the remote project.</td></tr>
+        <tr><td><code>LOGBOOK_PROJECT</code></td><td><em>(none)</em></td><td>Remote project name.</td></tr>
+        <tr><td><code>LOGBOOK_VERSION</code></td><td><em>(newest)</em></td><td>Install scripts only: pin a CLI version, e.g. <code>0.8.0</code>.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<footer>
+  <div class="foot">
+    <div class="brand"><span class="mark"></span><span>Codicent<span class="sub">/logbook/cli</span></span></div>
+    <div class="meta">
+      <a href="../">Logbook server</a>
+      <a href="https://codicent.com">codicent.com</a>
+      <a href="https://github.com/izaxon/codicent-logbook/releases">Releases ↗</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  var CODES = {
+    hero: "curl -fsSL https://logbook.codicent.ai/cli/install.sh | bash\nlogbook init\nlogbook add \"Customer prefers dark mode #memory #ux\"\nlogbook list -t memory --length 1",
+    nix: "curl -fsSL https://logbook.codicent.ai/cli/install.sh | bash\nlogbook init",
+    win: "iwr https://logbook.codicent.ai/cli/install.ps1 | iex\nlogbook init",
+    manual: "curl -Lo logbook \\\n  https://github.com/izaxon/codicent-logbook/releases/download/logbook-v0.8.0/logbook-linux-x64\nchmod +x logbook && ./logbook --version",
+    entries: "logbook add \"Deployed 1.12.2 to prod #deploy #prod\"\necho \"long notes…\" | logbook add -t notes\nlogbook add -t deploy --amend <id> \"Deployed 1.12.3\"\nlogbook list -t deploy --from 2026-10-01\nlogbook find --body-only \"rollback\"\nlogbook history <id>",
+    data: "logbook data set -t customer '{\"name\":\"Acme\",\"status\":\"active\"}'\nlogbook data get -t customer --filter status=active\nlogbook data get -t customer --format table\nlogbook data get -t customer --format export --all --output customers.json\nlogbook data import customers.json --dry-run",
+    agentmd: "## Memory\nUse the `logbook` CLI as persistent memory.\n- Recall first: `logbook list -t memory --length 20`\n  or `logbook find -t memory \"<topic>\"`\n- Record decisions: `logbook add \"<fact> #memory #<topic>\"`\n- Correct a fact: `logbook add --amend <id> -t memory \"<new>\"`\n- Never edit files under data/ by hand.",
+    openclaw: "tools:\n  - name: logbook\n    type: shell\n    description: Persistent memory log. Immutable, tagged, versioned.\n    commands:\n      add:     \"logbook add -t {tags} {message}\"\n      list:    \"logbook list -t {tags}\"\n      find:    \"logbook find -t {tags} {pattern}\"\n      get:     \"logbook get {id}\"\n      history: \"logbook history {id}\"",
+    login: "logbook login\nlogbook login --url https://myserver.com --project myproj\nlogbook status\nlogbook add \"Shared note #team\"\nlogbook logout",
+    env: "export LOGBOOK_REMOTE_URL=\"https://codicent.com\"\nexport LOGBOOK_REMOTE_TOKEN=\"<api-token>\"\nexport LOGBOOK_PROJECT=\"myproject\"\nlogbook data get -t customer --format json"
+  };
+  document.querySelectorAll(".copy-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      var txt = CODES[btn.getAttribute("data-code")] || "";
+      var label = btn.querySelector("span");
+      var restore = label.textContent;
+      function done(){ label.textContent = "Copied ✓"; setTimeout(function(){ label.textContent = restore; }, 1300); }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).then(done).catch(done);
+      } else { done(); }
+    });
+  });
+  document.querySelectorAll(".tab-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      var tabs = btn.closest(".tabs");
+      tabs.querySelectorAll(".tab-btn").forEach(function(b){ b.classList.remove("active"); });
+      tabs.querySelectorAll(".tab-panel").forEach(function(p){ p.classList.remove("active"); });
+      btn.classList.add("active");
+      document.getElementById(btn.getAttribute("data-tab")).classList.add("active");
+    });
+  });
+</script>
+</body>
+</html>
